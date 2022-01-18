@@ -209,33 +209,75 @@ class mlp():
       # if(layer == lastLayer): print("Is last layer")
       self.backprop(layer, y_real_vector)
 
-  def adjustWeightsAndBiases(self):
-    for layer in range(self.hiddenLayers + 2):
-      # UPDATE BIASES      
-      for idx,devBias in enumerate(self.cache['devBiases'][layer]):
-        if(self.debug): print("bias update, old {}, delta -1 * {}".format(self.biases[layer][idx], devBias * self.learning_rate))
-        self.biases[layer][idx] -= devBias * self.learning_rate
-        self.biases[layer][idx] = round(self.biases[layer][idx], 5)
-      # UPDATE WEIGHTS      
-      for m,devWeightRow in enumerate(self.cache['devWeights'][layer]):
-        for n,devWeightCell in enumerate(devWeightRow):
-          if(self.debug): print("weight update, old {}, delta -1 * {}".format(self.weights[layer][m][n], devWeightCell * self.learning_rate))
-          self.weights[layer][m][n] -= devWeightCell * self.learning_rate
+  def adjustWeightsAndBiases(self, deltaWeights, deltaBiases):
+    for layer, weights in enumerate(deltaWeights):
+      for m, row in enumerate(weights):
+        for n, cell in enumerate(row):
+          self.weights[layer][m][n] -= cell * self.learning_rate
           self.weights[layer][m][n] = round(self.weights[layer][m][n], 5)
 
-  def epoch(self, input, y_real_vector, EPOCH=3):
+    for layer, biases in enumerate(deltaBiases):
+      for m, cell in enumerate(biases):
+        self.biases[layer][m] -= cell * self.learning_rate
+        self.biases[layer][m] = round(self.biases[layer][m], 5)
+
+          
+    # for layer in range(self.hiddenLayers + 2):
+    #   # UPDATE BIASES      
+    #   for idx,devBias in enumerate(self.cache['devBiases'][layer]):
+    #     if(self.debug): print("bias update, old {}, delta -1 * {}".format(self.biases[layer][idx], devBias * self.learning_rate))
+    #     self.biases[layer][idx] -= devBias * self.learning_rate
+    #     self.biases[layer][idx] = round(self.biases[layer][idx], 5)
+    #   # UPDATE WEIGHTS      
+    #   for m,devWeightRow in enumerate(self.cache['devWeights'][layer]):
+    #     for n,devWeightCell in enumerate(devWeightRow):
+    #       if(self.debug): print("weight update, old {}, delta -1 * {}".format(self.weights[layer][m][n], devWeightCell * self.learning_rate))
+    #       self.weights[layer][m][n] -= devWeightCell * self.learning_rate
+    #       self.weights[layer][m][n] = round(self.weights[layer][m][n], 5)
+
+  def epoch(self, dataset, EPOCH=3):
+    """ dataset is a list of lists of lists [[x1,y1], [x2,y2], ...], with x and y vectors """
     self.input = input
     for epoch in range(EPOCH):
-      self.activations = []
       print('EPOCH {}'.format(epoch))
-      y = self.feedforward(input)
-      print('FEED FORWARD', y)
-      error = self.measure(y, y_real_vector)
-      print('ERROR', error)
-      # print('BACKPROP')
-      self.gradientDescent(y_real_vector)
-      # print('ADJUST WEIGHTS AND BIASES')
-      self.adjustWeightsAndBiases()
+      # NOTE errors not in use, can be used to get the weighted sum or errors
+      errors = []
+      deltaWeights = None
+      deltaBiases = None
+      for xVec,yVec in dataset:
+        self.activations = []
+        y = self.feedforward(xVec)
+        print('FEED FORWARD {} -> {}'.format(xVec, y))
+        error = self.measure(y, yVec)
+        errors.append(error)
+        print('ERROR', error)
+        # print('BACKPROP')
+        self.gradientDescent(yVec)
+        # SAVE ACTIVATIONS
+        if(deltaWeights == None): 
+          deltaWeights = list(self.cache['devWeights'])
+          deltaBiases = list(self.cache['devBiases'])
+        else: 
+          for layer, weights in enumerate(deltaWeights):
+            for m, row in enumerate(weights):
+              for n, cell in enumerate(row):
+                cell += self.cache['devWeights'][layer][m][n]
+          for layer, biases in enumerate(deltaBiases):
+            for m, cell in enumerate(biases):
+              cell += self.cache['devBiases'][layer][m]
+
+      # print('ADJUST WEIGHTS AND BIASES', deltaWeights, deltaBiases)
+      self.adjustWeightsAndBiases(deltaWeights, deltaBiases)
+    for xVec,yVec in dataset:
+      errors = []
+      y = self.feedforward(xVec)
+      error = self.measure(y, yVec)
+      errors.append(error)
+    totalError = 0
+    for err in errors:
+      totalError += err
+    print('TOTAL ERROR', err)
+    
 
   def testState(self):
     self.initCache()
